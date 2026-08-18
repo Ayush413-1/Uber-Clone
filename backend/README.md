@@ -312,6 +312,19 @@ application/json
 8. If password matches, generate JWT token from user ID
 9. Return `200` status with token and user object (password excluded)
 
+### Profile Flow
+1. Authentication middleware verifies JWT token from Authorization header
+2. If token is missing or invalid, return `401` Unauthorized
+3. If token is valid, extract user ID from token
+4. Query database for user by ID
+5. Return `200` status with user profile data (password excluded)
+
+### Logout Flow
+1. Authentication middleware verifies JWT token from Authorization header
+2. If token is missing or invalid, return `401` Unauthorized
+3. If token is valid, clear user session (typically invalidate token on client)
+4. Return `200` status with success message
+
 ---
 
 ## Environment Variables Required
@@ -393,12 +406,272 @@ fetch('http://localhost:3000/users/login', {
 
 ---
 
+### Get Profile
+
+#### cURL
+```bash
+curl -X GET http://localhost:3000/users/profile \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+#### JavaScript (Fetch API)
+```javascript
+const token = localStorage.getItem('authToken'); // Token from login/register
+
+fetch('http://localhost:3000/users/profile', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+---
+
+### Logout
+
+#### cURL
+```bash
+curl -X GET http://localhost:3000/users/logout \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+#### JavaScript (Fetch API)
+```javascript
+const token = localStorage.getItem('authToken'); // Token from login/register
+
+fetch('http://localhost:3000/users/logout', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+})
+.then(response => response.json())
+.then(data => {
+  console.log(data);
+  localStorage.removeItem('authToken'); // Clear token from storage
+});
+```
+
+---
+
+## GET `/users/profile`
+
+### Request Method
+```
+GET
+```
+
+### Endpoint Path
+```
+/users/profile
+```
+
+### Description
+Retrieves the authenticated user's profile information. Requires valid JWT token in Authorization header.
+
+---
+
+## Request Headers
+
+| Header | Value | Description |
+|--------|-------|-------------|
+| `Authorization` | `Bearer <token>` | JWT token obtained from register or login endpoint |
+
+### Example Request
+```
+GET /users/profile
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+---
+
+## Response
+
+### Success Response
+
+**Status Code:** `200 OK`
+
+**Response Body:**
+```json
+{
+  "_id": "507f1f77bcf86cd799439011",
+  "fullname": {
+    "firstname": "John",
+    "lastname": "Doe"
+  },
+  "email": "john.doe@example.com",
+  "socketId": null
+}
+```
+
+**Description:** User profile retrieved successfully. Returns the authenticated user's details without the password field.
+
+---
+
+### Error Responses
+
+#### Missing Authorization Header
+
+**Status Code:** `401 Unauthorized`
+
+**Response Body:**
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+**Reasons:**
+- Authorization header is missing
+- Token is not provided
+
+---
+
+#### Invalid or Expired Token
+
+**Status Code:** `401 Unauthorized`
+
+**Response Body:**
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+**Reasons:**
+- JWT token is invalid
+- JWT token has expired
+- JWT token signature is tampered with
+
+---
+
+## Profile Response Status Codes
+
+| Status Code | Meaning | Description |
+|-------------|---------|-------------|
+| `200` | OK | Profile retrieved successfully |
+| `401` | Unauthorized | Missing, invalid, or expired token |
+
+---
+
+## GET `/users/logout`
+
+### Request Method
+```
+GET
+```
+
+### Endpoint Path
+```
+/users/logout
+```
+
+### Description
+Logs out an authenticated user by clearing the user session. Requires valid JWT token in Authorization header.
+
+---
+
+## Request Headers
+
+| Header | Value | Description |
+|--------|-------|-------------|
+| `Authorization` | `Bearer <token>` | JWT token obtained from register or login endpoint |
+
+### Example Request
+```
+GET /users/logout
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+---
+
+## Response
+
+### Success Response
+
+**Status Code:** `200 OK`
+
+**Response Body:**
+```json
+{
+  "message": "User logged out successfully"
+}
+```
+
+**Description:** User successfully logged out. Session is cleared and token is invalidated.
+
+---
+
+### Error Responses
+
+#### Missing Authorization Header
+
+**Status Code:** `401 Unauthorized`
+
+**Response Body:**
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+**Reasons:**
+- Authorization header is missing
+- Token is not provided
+
+---
+
+#### Invalid or Expired Token
+
+**Status Code:** `401 Unauthorized`
+
+**Response Body:**
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+**Reasons:**
+- JWT token is invalid
+- JWT token has expired
+- JWT token signature is tampered with
+
+---
+
+## Logout Response Status Codes
+
+| Status Code | Meaning | Description |
+|-------------|---------|-------------|
+| `200` | OK | Logout successful |
+| `401` | Unauthorized | Missing, invalid, or expired token |
+
+---
+
 ## Notes
 
+### General Notes
 - Email addresses must be unique; registering with an existing email will result in a database error
 - Last name is optional during registration but if provided must be at least 3 characters
 - Passwords are case-sensitive
-- The returned JWT token should be stored on the client side and included in the Authorization header for subsequent API requests
+- Both registration and login endpoints exclude the password field from the response for security reasons (except during password verification)
+
+### Authentication & Authorization
+- The returned JWT token should be stored on the client side (localStorage, sessionStorage, or cookies)
+- The token must be included in the `Authorization` header as `Bearer <token>` for authenticated endpoints
+- The `/users/profile` and `/users/logout` endpoints require valid authentication
+- If token is missing, invalid, or expired, authenticated endpoints return `401 Unauthorized`
+- Tokens are signed with `JWT_SECRET` environment variable and include the user's ID
+
+### Login Security
 - Login will fail if the user has not registered with the provided email address
 - Login will fail if the password does not match (even if email exists)
-- Both endpoints exclude the password field from the response for security reasons (except during password verification)
+- Generic error message "Invalid email or password" is used to prevent email enumeration attacks
+
+### Logout Behavior
+- Logout clears the server-side session for the user
+- Clients must also remove the token from local storage after logout
+- After logout, any requests using the old token will be rejected
